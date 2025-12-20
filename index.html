@@ -36,7 +36,7 @@
         #add-file:hover{background:#c00}
         #fullscreen-btn{position:absolute;top:12px;right:12px;padding:10px 20px;background:#f00;border:none;color:#fff;cursor:pointer;border-radius:6px;z-index:10;transition:.3s}
         #fullscreen-btn:hover{background:#c00}
-        .fetch-header{padding:20px;background:#111;border-bottom:2px solid #f00;display:flex;flex-direction:column;align-items:center;gap:15px}
+        .fetch-header{padding:20px;background:#111;border-bottom:2px solid #f00;display:flex;flex-direction:column;align-items:center;gap:18px}
         #url-input{width:80%;max-width:600px;padding:16px;background:#222;border:2px solid #f00;color:#fff;border-radius:8px;font-size:17px;outline:none}
         #url-input:focus{border-color:#ff3333}
         #fetch-btn{padding:16px 40px;background:#f00;border:none;color:#fff;font-weight:bold;border-radius:8px;cursor:pointer;transition:.3s}
@@ -44,6 +44,62 @@
         #fetched-files{flex:1;overflow-y:auto;padding:20px;background:#000}
         .status{padding:12px;background:#300;color:#f66;text-align:center;border-radius:8px;margin:10px 0;font-weight:bold}
         .error-status{background:#500;color:#fcc}
+        
+        /* Fixed & Improved Toggle Switch */
+        .toggle-container{
+            display:flex;
+            align-items:center;
+            gap:15px;
+            font-weight:bold;
+            font-size:16px;
+            color:#fff;
+        }
+        .toggle-switch{
+            position:relative;
+            display:inline-block;
+            width:70px;
+            height:38px;
+        }
+        .toggle-switch input{
+            opacity:0;
+            width:0;
+            height:0;
+        }
+        .slider{
+            position:absolute;
+            cursor:pointer;
+            top:0;left:0;right:0;bottom:0;
+            background:#333;
+            transition:.4s;
+            border-radius:38px;
+            border:2px solid #f00;
+            box-shadow:0 0 10px rgba(255,0,0,0.4);
+        }
+        .slider:before{
+            position:absolute;
+            content:"";
+            height:30px;
+            width:30px;
+            left:4px;
+            bottom:4px;
+            background:#fff;
+            transition:.4s;
+            border-radius:50%;
+            box-shadow:0 0 8px rgba(0,0,0,0.6);
+        }
+        input:checked + .slider{
+            background:#f00;
+            box-shadow:0 0 15px rgba(255,0,0,0.8);
+        }
+        input:checked + .slider:before{
+            transform:translateX(32px);
+        }
+        .toggle-label{
+            min-width:40px;
+            font-weight:bold;
+            color:#0f0;
+        }
+
         .fullscreen .preview-panel{width:100vw;height:100vh;position:fixed;top:0;left:0;z-index:100;background:#000}
         .fullscreen .editor-panel,.fullscreen .header,.fullscreen .tabs{display:none}
     </style>
@@ -70,6 +126,16 @@
     <div class="fetch-header">
         <input type="text" id="url-input" placeholder="https://example.com or example.com/page.html">
         <button id="fetch-btn">Fetch Files</button>
+        
+        <div class="toggle-container">
+            <span>Crawl Entire Site</span>
+            <label class="toggle-switch">
+                <input type="checkbox" id="crawl-full-toggle" checked>
+                <span class="slider"></span>
+            </label>
+            <span class="toggle-label" id="toggle-label">ON</span>
+        </div>
+        
         <div style="display:flex;gap:10px;margin-top:10px;">
             <button id="download-zip" class="zip-btn" style="display:none;">Download All as ZIP</button>
             <button id="download-single" class="single-btn" style="display:none;">Download All as Single HTML</button>
@@ -81,6 +147,11 @@
     </div>
 </div>
 <script>
+// Update toggle label
+document.getElementById('crawl-full-toggle').addEventListener('change', function() {
+    document.getElementById('toggle-label').textContent = this.checked ? 'ON' : 'OFF';
+});
+
 // Universal download
 function downloadFile(filename, content, type = 'text/plain') {
     const blob = new Blob([content], { type });
@@ -93,7 +164,6 @@ function downloadFile(filename, content, type = 'text/plain') {
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
 }
-
 // Tab switching
 document.querySelectorAll('.tab').forEach(tab => {
     tab.addEventListener('click', () => {
@@ -103,7 +173,6 @@ document.querySelectorAll('.tab').forEach(tab => {
         document.getElementById(tab.dataset.tab === 'manual' ? 'manual-editor' : 'fetch-page').classList.add('active');
     });
 });
-
 /* Manual Editor */
 let files = [];
 function addFile(name = 'index.html', content = '') {
@@ -146,7 +215,6 @@ document.getElementById('files-container').addEventListener('click', e => {
     }
 });
 document.getElementById('add-file').addEventListener('click', () => addFile());
-
 function updatePreview() {
     let html = '', css = [], js = [];
     files.forEach(f => {
@@ -165,26 +233,22 @@ document.getElementById('fullscreen-btn').addEventListener('click', () => {
     this.textContent = document.body.classList.contains('fullscreen') ? 'Exit Fullscreen' : 'Fullscreen';
 });
 
-/* Auto Crawler - IMPROVED MULTI-PROXY SYSTEM */
+/* Auto Crawler - PROXY SYSTEM */
 const PROXIES = [
-    'https://corsproxy.io/?',                  // Primary - fast & reliable
-    'https://api.allorigins.win/raw?url=',     // Fallback 1
-    'https://cors.bridged.cc/',                // Fallback 2
-    'https://proxy.cors.sh/',                  // Fallback 3
-    'https://thingproxy.freeboard.io/fetch/'   // Fallback 4
+    'https://corsproxy.io/?',
+    'https://api.allorigins.win/raw?url=',
+    'https://cors.bridged.cc/',
+    'https://proxy.cors.sh/',
+    'https://thingproxy.freeboard.io/fetch/'
 ];
-
 let currentProxyIndex = 0;
-
 function getCurrentProxy() {
     return PROXIES[currentProxyIndex];
 }
-
 async function fetchWithProxy(url, signal) {
     const proxyBase = getCurrentProxy();
     const encodedUrl = encodeURIComponent(url);
     const fullUrl = proxyBase + encodedUrl;
-
     try {
         const res = await fetch(fullUrl, { signal });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -199,14 +263,11 @@ async function fetchWithProxy(url, signal) {
         throw err;
     }
 }
-
 let fetchedFiles = [];
 let globalVisitedUrls = new Set();
-
 function resolve(base, url) {
     try { return new URL(url, base).href; } catch { return url; }
 }
-
 function getRelativePath(fromDir, toPath) {
     const fromParts = fromDir.split('/').filter(Boolean);
     const toParts = toPath.split('/').filter(Boolean);
@@ -214,17 +275,14 @@ function getRelativePath(fromDir, toPath) {
     while (i < fromParts.length && i < toParts.length && fromParts[i] === toParts[i]) i++;
     return '../'.repeat(fromParts.length - i) + toParts.slice(i).join('/') || './';
 }
-
 async function processPage(url, rootUrl, progress, controller) {
     if (globalVisitedUrls.has(url)) return [];
     globalVisitedUrls.add(url);
-
     progress.textContent = `Fetching: ${url}`;
     progress.style.background = '#330';
-
     let html_text = '';
     try {
-        currentProxyIndex = 0; // Always start with best proxy
+        currentProxyIndex = 0;
         const res = await fetchWithProxy(url, controller.signal);
         html_text = await res.text();
     } catch (e) {
@@ -234,35 +292,30 @@ async function processPage(url, rootUrl, progress, controller) {
         progress.classList.add('error-status');
         return [];
     }
-
     const parser = new DOMParser();
     const doc = parser.parseFromString(html_text, 'text/html');
     const pageBase = url.substring(0, url.lastIndexOf('/') + 1);
     const htmlPath = url.substring(rootUrl.length) || 'index.html';
     const htmlDir = htmlPath.substring(0, htmlPath.lastIndexOf('/') + 1);
-
-    const pageAssetMap = new Map(); // fullUrl -> localPath
+    const pageAssetMap = new Map();
     const internalLinks = new Set();
-
-    // Collect internal links
-    doc.querySelectorAll('a[href]').forEach(el => {
-        const href = el.getAttribute('href');
-        if (href) {
-            const full = resolve(pageBase, href);
-            if (full.startsWith(rootUrl)) internalLinks.add(full);
-        }
-    });
-
-    // Collect and rewrite assets
+    
+    if (document.getElementById('crawl-full-toggle').checked) {
+        doc.querySelectorAll('a[href]').forEach(el => {
+            const href = el.getAttribute('href');
+            if (href) {
+                const full = resolve(pageBase, href);
+                if (full.startsWith(rootUrl)) internalLinks.add(full);
+            }
+        });
+    }
+    
     ['link[rel="stylesheet"]', 'script[src]', 'img[src]', 'link[rel="icon"]', 'link[rel="shortcut icon"]', 'source[srcset]'].forEach(sel => {
         doc.querySelectorAll(sel).forEach(el => {
             const attr = el.hasAttribute('src') ? 'src' : el.hasAttribute('srcset') ? 'srcset' : 'href';
             let value = el.getAttribute(attr);
             if (!value || value.startsWith('data:')) return;
-
-            // Handle srcset (multiple URLs)
             const urls = attr === 'srcset' ? value.split(',').map(s => s.trim().split(' ')[0]) : [value];
-
             urls.forEach(rawUrl => {
                 const full = resolve(pageBase, rawUrl);
                 if (globalVisitedUrls.has(full)) return;
@@ -271,40 +324,30 @@ async function processPage(url, rootUrl, progress, controller) {
                     : 'assets/' + full.split('/').pop().split('?')[0].split('#')[0];
                 pageAssetMap.set(full, localPath);
             });
-
-            // Simple rewrite: use the first mapped local path
             if (pageAssetMap.size > 0) {
-                const firstLocal = Array.from(pageAssetMap.values())[0];
-                const relative = getRelativePath(htmlDir, firstLocal);
+                const local = pageAssetMap.get(resolve(pageBase, value)) || 'assets/' + value.split('/').pop();
+                const relativePath = getRelativePath(htmlDir, local);
                 if (attr === 'srcset') {
-                    // Basic srcset rewrite (replace first URL only)
-                    el.setAttribute(attr, value.replace(urls[0], relative));
+                    el.setAttribute(attr, value.replace(urls[0], relativePath));
                 } else {
-                    const local = pageAssetMap.get(resolve(pageBase, value)) || 'assets/' + value.split('/').pop();
-                    const relativePath = getRelativePath(htmlDir, local);
                     el.setAttribute(attr, relativePath);
                 }
             }
         });
     });
-
     const modifiedHtml = '<!DOCTYPE html>\n' + doc.documentElement.outerHTML;
     addFetchedFile(htmlPath, modifiedHtml, false);
     fetchedFiles.push({ name: htmlPath, content: modifiedHtml, type: 'text/html' });
-
     const assets = Array.from(pageAssetMap.entries());
     progress.textContent = `Fetching ${assets.length} assets... (0/${assets.length})`;
     let done = 0;
-
     await Promise.all(assets.map(async ([fullUrl, localName]) => {
         if (globalVisitedUrls.has(fullUrl)) return;
         globalVisitedUrls.add(fullUrl);
-
         try {
             currentProxyIndex = 0;
             const res = await fetchWithProxy(fullUrl, controller.signal);
             if (!res.ok) throw new Error('Bad response');
-
             const isImage = /\.(png|jpe?g|gif|svg|webp|avif|bmp|ico|webm)$/i.test(localName);
             if (isImage) {
                 const blob = await res.blob();
@@ -329,50 +372,48 @@ async function processPage(url, rootUrl, progress, controller) {
         done++;
         progress.textContent = `Fetching assets (${done}/${assets.length})`;
     }));
-
     return Array.from(internalLinks);
 }
-
 // Fetch button
 document.getElementById('fetch-btn').addEventListener('click', async () => {
     let url = document.getElementById('url-input').value.trim();
     if (!url) return alert('Enter a URL');
     if (!url.startsWith('http')) url = 'https://' + url;
-
     const container = document.getElementById('fetched-files');
     const progress = document.getElementById('progress');
     const zipBtn = document.getElementById('download-zip');
     const singleBtn = document.getElementById('download-single');
-
+    const fullCrawl = document.getElementById('crawl-full-toggle').checked;
+    
     container.innerHTML = '';
     progress.style.display = 'block';
     progress.style.background = '#330';
-    progress.textContent = 'Starting crawl...';
+    progress.textContent = 'Starting...';
     progress.classList.remove('error-status');
     zipBtn.style.display = 'none';
     singleBtn.style.display = 'none';
-
     fetchedFiles = [];
     globalVisitedUrls = new Set();
-
     const rootUrl = new URL(url).origin + '/';
     const queue = [url];
     const maxDepth = 5;
     let depth = 0;
-
     const controller = new AbortController();
-
     try {
-        while (queue.length > 0 && depth <= maxDepth) {
-            const levelSize = queue.length;
-            for (let i = 0; i < levelSize; i++) {
-                const current = queue.shift();
-                const newLinks = await processPage(current, rootUrl, progress, controller);
-                queue.push(...newLinks.filter(l => !globalVisitedUrls.has(l)));
+        if (fullCrawl) {
+            while (queue.length > 0 && depth <= maxDepth) {
+                const levelSize = queue.length;
+                for (let i = 0; i < levelSize; i++) {
+                    const current = queue.shift();
+                    const newLinks = await processPage(current, rootUrl, progress, controller);
+                    queue.push(...newLinks.filter(l => !globalVisitedUrls.has(l)));
+                }
+                depth++;
             }
-            depth++;
+        } else {
+            await processPage(url, rootUrl, progress, controller);
         }
-
+        
         if (fetchedFiles.length === 0) {
             progress.textContent = 'No files fetched — try a different site or check the URL.';
             progress.style.background = '#500';
@@ -385,12 +426,10 @@ document.getElementById('fetch-btn').addEventListener('click', async () => {
         progress.textContent = 'Crawl interrupted or failed.';
         progress.style.background = '#500';
     }
-
     const show = fetchedFiles.length > 0 ? 'inline-block' : 'none';
     zipBtn.style.display = show;
     singleBtn.style.display = show;
 });
-
 function addFetchedFile(name, content, isImage = false) {
     const div = document.createElement('div');
     div.className = 'file-section';
@@ -416,7 +455,6 @@ function addFetchedFile(name, content, isImage = false) {
     }
     document.getElementById('fetched-files').appendChild(div);
 }
-
 // Buttons for fetched files
 document.getElementById('fetched-files').addEventListener('click', e => {
     if (e.target.matches('.copy-btn')) {
@@ -435,7 +473,6 @@ document.getElementById('fetched-files').addEventListener('click', e => {
         }
     }
 });
-
 // ZIP Download
 document.getElementById('download-zip').addEventListener('click', async () => {
     if (fetchedFiles.length === 0) return;
@@ -452,7 +489,6 @@ document.getElementById('download-zip').addEventListener('click', async () => {
     btn.disabled = false;
     btn.textContent = 'Download All as ZIP';
 });
-
 // Single HTML Download
 document.getElementById('download-single').addEventListener('click', () => {
     if (fetchedFiles.length === 0) return;
@@ -464,33 +500,25 @@ document.getElementById('download-single').addEventListener('click', () => {
     let html = mainHtml.content;
     const parser = new DOMParser();
     const doc = parser.parseFromString(html, 'text/html');
-
-    // Inline CSS
     fetchedFiles.filter(f => f.name.endsWith('.css') && f.content).forEach(cssFile => {
         const style = document.createElement('style');
         style.textContent = cssFile.content;
         doc.head.appendChild(style);
     });
-
-    // Inline JS
     fetchedFiles.filter(f => f.name.endsWith('.js') && f.content).forEach(jsFile => {
         const script = document.createElement('script');
         script.textContent = jsFile.content;
         doc.body.appendChild(script);
     });
-
-    // Inline images/assets with data URLs
     fetchedFiles.filter(f => f.dataUrl).forEach(file => {
         doc.querySelectorAll(`[src="${file.name}"], [href="${file.name}"]`).forEach(el => {
             const attr = el.hasAttribute('src') ? 'src' : 'href';
             el.setAttribute(attr, file.dataUrl);
         });
     });
-
     const finalHtml = '<!DOCTYPE html>\n' + doc.documentElement.outerHTML;
     downloadFile('website-single.html', finalHtml, 'text/html');
 });
-
 // Start with example file
 addFile();
 </script>
